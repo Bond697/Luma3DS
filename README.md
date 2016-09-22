@@ -1,6 +1,8 @@
 # Luma3DS
 *Noob-proof (N)3DS "Custom Firmware"*
 
+THIS IS FOR 11.1 ONLY AT THE MOMENT
+
 This is a fork of Luma3DS that spawns a thread payload of user-supplied code for RAM editing, RAM dumping, or any other purpose you might need. You need to use my thread payload with this at https://github.com/Bond697/LumaThreadN3DS
 
 To use this fork: you should be able to simply run the batch to build and copy the arm9loaderhax.bin to your sd card.  
