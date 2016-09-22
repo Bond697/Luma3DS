@@ -348,13 +348,13 @@ void patchUnitInfoValueSet(u8 *pos, u32 size)
 
 void DoThreadPatches(u8 *pos, u32 size)
 {
-	u32 read_size = fileRead((void*)0x1FFC000, "/luma/thread.bin", 0x424);
+	u32 read_size = fileRead((void*)0x1FF9000, "/luma/thread.bin", 0x6800);
 	
 	const u8 pattern[] = { 0xE9, 0xFF, 0xFF, 0x3A };
 
-	u32* thread_off = (u32 *)(memsearch(pos, pattern, size, sizeof(pattern)));
+	u32* thread_off = (u32*)(memsearch(pos, pattern, size, sizeof(pattern)));
 	thread_off += 1;
 
 	*thread_off = 0xE59FF02C;					// ldr pc, [pc, #44]
-	*(thread_off + (0x34 / 4)) = 0x1FFC000;		// pc+44
+	*(thread_off + (0x34 / 4)) = 0x1FF9000;		// pc+44
 }
