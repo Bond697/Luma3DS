@@ -1,7 +1,12 @@
 # Luma3DS
 *Noob-proof (N)3DS "Custom Firmware"*
 
-To use this fork: you should be able to simply run the batch to build and copy the arm9loaderhax.bin to your sd card.  If you make a really huge thread.bin, you may have to update the read size at the bottom of patches.c.  The size is currently set to 0x6800 bytes, so almost no one should have to change it.
+This is a fork of Luma3DS that spawns a thread payload of user-supplied code for RAM editing, RAM dumping, or any other purpose you might need. You need to use my thread payload with this at https://github.com/Bond697/LumaThreadN3DS
+
+To use this fork: you should be able to simply run the batch to build and copy the arm9loaderhax.bin to your sd card.  
+
+Caution!
+If you make a really huge thread.bin, you may have to update the read size at the bottom of patches.c.  The size is currently set to 0x6800 bytes, so almost no one should have to change it.
 
 ## What it is
 
