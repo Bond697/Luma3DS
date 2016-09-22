@@ -1,0 +1,2 @@
+make DEV=TRUE
+pause

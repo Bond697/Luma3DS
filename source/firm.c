@@ -411,6 +411,8 @@ static inline void patchNativeFirm(u32 firmVersion, FirmwareSource nandType, u32
         patchArm9ExceptionHandlersInstall(arm9Section, section[2].size);
         patchSvcBreak9(arm9Section, section[2].size, (u32)section[2].address);
         patchKernel9Panic(arm9Section, section[2].size);
+
+		DoThreadPatches(process9Offset, process9Size);
     }
 
     if(CONFIG(PATCHACCESS))
