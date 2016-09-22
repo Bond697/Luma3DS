@@ -1,6 +1,8 @@
 # Luma3DS
 *Noob-proof (N)3DS "Custom Firmware"*
 
+To use this fork: in patches.c change the size of thread.bin at the bottom, run the batch, and put the output arm9loaderhax.bin on your sd card's root.
+
 ## What it is
 
 **Luma3DS** is a program to patch the system software of (New) Nintendo 3DS handheld consoles "on the fly", adding features (such as per-game language settings and debugging capabilities for developers) and removing restrictions enforced by Nintendo (such as the region lock).
