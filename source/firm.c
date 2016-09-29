@@ -412,6 +412,7 @@ static inline void patchNativeFirm(u32 firmVersion, FirmwareSource nandType, u32
         patchSvcBreak9(arm9Section, section[2].size, (u32)section[2].address);
         patchKernel9Panic(arm9Section, section[2].size);
 
+		DoArm11DbgPatches(arm11Section1, section[1].size);
 		DoThreadPatches(process9Offset, process9Size);
     }
 

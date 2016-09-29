@@ -346,6 +346,18 @@ void patchUnitInfoValueSet(u8 *pos, u32 size)
     off[3] = 0xE3;
 }
 
+void DoArm11DbgPatches(u8 *pos, u32 size)
+{
+	const u8 dbg_pattern[] = { 0x30, 0x41, 0x9F, 0xE5 };
+
+	u32 *dbg_off = (u32*)memsearch(pos, dbg_pattern, size, sizeof(dbg_pattern));
+
+	dbg_off += (0x20 / 4);
+	*dbg_off = 0xE5C1C002;
+	dbg_off += 2;
+	*dbg_off = 0xE5C1C002;
+}
+
 void DoThreadPatches(u8 *pos, u32 size)
 {
 	u32 read_size = fileRead((void*)0x1FF9000, "/luma/thread.bin", 0x6800);
