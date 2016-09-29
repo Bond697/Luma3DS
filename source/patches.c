@@ -25,12 +25,17 @@
 */
 
 #include "patches.h"
+#include "fs.h"
 #include "memory.h"
 #include "config.h"
+<<<<<<< HEAD
 #include "fs.h"
 #include "../build/rebootpatch.h"
 #include "../build/svcGetCFWInfopatch.h"
 #include "../build/k11modulespatch.h"
+=======
+#include "../build/bundled.h"
+>>>>>>> 5f937248455008055ffa8059e59f717776bda7e8
 
 u8 *getProcess9(u8 *pos, u32 size, u32 *process9Size, u32 *process9MemAddr)
 {
@@ -65,8 +70,6 @@ u32 *getKernel11Info(u8 *pos, u32 size, u32 *baseK11VA, u8 **freeK11Space, u32 *
 
 void patchSignatureChecks(u8 *pos, u32 size)
 {
-    const u16 sigPatch[2] = {0x2000, 0x4770};
-
     //Look for signature checks
     const u8 pattern[] = {0xC0, 0x1C, 0x76, 0xE7},
              pattern2[] = {0xB5, 0x22, 0x4D, 0x0C};
@@ -74,9 +77,8 @@ void patchSignatureChecks(u8 *pos, u32 size)
     u16 *off = (u16 *)memsearch(pos, pattern, size, sizeof(pattern)),
         *off2 = (u16 *)(memsearch(pos, pattern2, size, sizeof(pattern2)) - 1);
 
-    *off = sigPatch[0];
-    off2[0] = sigPatch[0];
-    off2[1] = sigPatch[1];
+    *off = off2[0] = 0x2000;
+    off2[1] = 0x4770;
 }
 
 void patchFirmlaunches(u8 *pos, u32 size, u32 process9MemAddr)
@@ -90,11 +92,37 @@ void patchFirmlaunches(u8 *pos, u32 size, u32 process9MemAddr)
     u32 fOpenOffset = (u32)(off + 9 - (-((*(u32 *)off & 0x00FFFFFF) << 2) & (0xFFFFFF << 2)) - pos + process9MemAddr);
 
     //Copy firmlaunch code
-    memcpy(off, reboot, reboot_size);
+    memcpy(off, reboot_bin, reboot_bin_size);
 
     //Put the fOpen offset in the right location
-    u32 *pos_fopen = (u32 *)memsearch(off, "OPEN", reboot_size, 4);
+    u32 *pos_fopen = (u32 *)memsearch(off, "OPEN", reboot_bin_size, 4);
     *pos_fopen = fOpenOffset;
+
+    if(CONFIG(USECUSTOMPATH))
+    {
+        const char pathPath[] = "/luma/path.txt";
+
+        u32 pathSize = getFileSize(pathPath);
+
+        if(pathSize > 5 && pathSize < 58)
+        {
+            u8 path[pathSize];
+            fileRead(path, pathPath, 0);
+            if(path[pathSize - 1] == 0xA) pathSize--;
+            if(path[pathSize - 1] == 0xD) pathSize--;
+
+            if(pathSize > 5 && pathSize < 56 && path[0] == '/' && memcmp(&path[pathSize - 4], ".bin", 4) == 0)
+            {
+                u16 finalPath[pathSize + 1];
+                for(u32 i = 0; i < pathSize; i++)
+                    finalPath[i] = (u16)path[i];
+                finalPath[pathSize] = 0;
+
+                u8 *pos_path = memsearch(off, u"sd", reboot_bin_size, 4) + 0xA;
+                memcpy(pos_path, finalPath, (pathSize + 1) * 2);
+            }
+        }
+    }
 }
 
 void patchFirmWrites(u8 *pos, u32 size)
@@ -145,9 +173,9 @@ void reimplementSvcBackdoor(u8 *pos, u32 *arm11SvcTable, u32 baseK11VA, u8 **fre
 
 void implementSvcGetCFWInfo(u8 *pos, u32 *arm11SvcTable, u32 baseK11VA, u8 **freeK11Space)
 {
-    memcpy(*freeK11Space, svcGetCFWInfo, svcGetCFWInfo_size);
+    memcpy(*freeK11Space, svcGetCFWInfo_bin, svcGetCFWInfo_bin_size);
 
-    CFWInfo *info = (CFWInfo *)memsearch(*freeK11Space, "LUMA", svcGetCFWInfo_size, 4);
+    CFWInfo *info = (CFWInfo *)memsearch(*freeK11Space, "LUMA", svcGetCFWInfo_bin_size, 4);
 
     const char *rev = REVISION;
 
@@ -168,7 +196,7 @@ void implementSvcGetCFWInfo(u8 *pos, u32 *arm11SvcTable, u32 baseK11VA, u8 **fre
     info->flags = isRelease ? 1 : 0;
 
     arm11SvcTable[0x2E] = baseK11VA + *freeK11Space - pos; //Stubbed svc
-    *freeK11Space += svcGetCFWInfo_size;
+    *freeK11Space += svcGetCFWInfo_bin_size;
 }
 
 void patchTitleInstallMinVersionCheck(u8 *pos, u32 size)
@@ -318,10 +346,10 @@ void patchK11ModuleChecks(u8 *pos, u32 size, u8 **freeK11Space)
        are compressed in memory and are only decompressed at runtime */
 
     //Check that we have enough free space
-    if(*(u32 *)(*freeK11Space + k11modules_size - 4) == 0xFFFFFFFF)
+    if(*(u32 *)(*freeK11Space + k11modules_bin_size - 4) == 0xFFFFFFFF)
     {
         //Inject our code into the free space
-        memcpy(*freeK11Space, k11modules, k11modules_size);
+        memcpy(*freeK11Space, k11modules_bin, k11modules_bin_size);
 
         //Look for the code that decompresses the .code section of the builtin modules
         const u8 pattern[] = {0xE5, 0x48, 0x00, 0x9D};
@@ -331,7 +359,7 @@ void patchK11ModuleChecks(u8 *pos, u32 size, u8 **freeK11Space)
         //Inject a jump (BL) instruction to our code at the offset we found
         *off = 0xEB000000 | (((((u32)*freeK11Space) - ((u32)off + 8)) >> 2) & 0xFFFFFF);
 
-        *freeK11Space += k11modules_size;
+        *freeK11Space += k11modules_bin_size;
     }
 }
 

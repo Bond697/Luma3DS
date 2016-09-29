@@ -102,7 +102,7 @@
 #define SHA_1_HASH_SIZE     (160 / 8)
 
 extern u32 emuOffset;
-extern bool isN3DS, isDevUnit;
+extern bool isN3DS, isDevUnit, isA9lh;
 extern FirmwareSource firmSource;
 
 void ctrNandInit(void);
@@ -112,3 +112,4 @@ void decryptExeFs(u8 *inbuf);
 void decryptNusFirm(const u8 *inbuf, u8 *outbuf, u32 ncchSize);
 void kernel9Loader(u8 *arm9Section);
 void computePinHash(u8 *outbuf, const u8 *inbuf);
+void restoreShaHashBackup(void);

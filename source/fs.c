@@ -23,11 +23,12 @@
 #include "fs.h"
 #include "memory.h"
 #include "strings.h"
+#include "crypto.h"
 #include "cache.h"
 #include "screen.h"
 #include "fatfs/ff.h"
 #include "buttons.h"
-#include "../build/loader.h"
+#include "../build/bundled.h"
 
 static FATFS sdFs,
              nandFs;
@@ -70,6 +71,7 @@ bool fileWrite(const void *buffer, const char *path, u32 size)
     {
         unsigned int written;
         f_write(&file, buffer, size, &written);
+        f_truncate(&file);
         f_close(&file);
 
         return true;
@@ -126,7 +128,7 @@ void loadPayload(u32 pressed)
         u32 *loaderAddress = (u32 *)0x24FFFF00;
         u8 *payloadAddress = (u8 *)0x24F00000;
 
-        memcpy(loaderAddress, loader, loader_size);
+        memcpy(loaderAddress, loader_bin, loader_bin_size);
 
         concatenateStrings(path, "/");
         concatenateStrings(path, info.altname);
@@ -137,10 +139,11 @@ void loadPayload(u32 pressed)
         {
             loaderAddress[1] = payloadSize;
 
+            if(isA9lh) restoreShaHashBackup();
             initScreens();
 
-            flushDCacheRange(loaderAddress, loader_size);
-            flushICacheRange(loaderAddress, loader_size);
+            flushDCacheRange(loaderAddress, loader_bin_size);
+            flushICacheRange(loaderAddress, loader_bin_size);
 
             ((void (*)())loaderAddress)();
         }
@@ -169,7 +172,7 @@ u32 firmRead(void *dest, u32 firmType)
     while(f_readdir(&dir, &info) == FR_OK && info.fname[0] != 0)
     {
         //Not a cxi
-        if(info.fname[9] != 'a') continue;
+        if(info.fname[9] != 'a' || strlen(info.fname) != 12) continue;
 
         //Convert the .app name to an integer
         u32 tempVersion = 0;
@@ -200,10 +203,15 @@ void findDumpFile(const char *path, char *fileName)
 {
     DIR dir;
     FILINFO info;
+    FRESULT result;
     u32 n = 0;
 
-    while(f_findfirst(&dir, &info, path, fileName) == FR_OK && info.fname[0] != 0)
+    while(true)
     {
+        result = f_findfirst(&dir, &info, path, fileName);
+
+        if(result != FR_OK || !info.fname[0]) break;
+
         u32 i = 18,
             tmp = ++n;
 
@@ -214,5 +222,5 @@ void findDumpFile(const char *path, char *fileName)
         }
     }
 
-    f_closedir(&dir);
+    if(result == FR_OK) f_closedir(&dir);
 }

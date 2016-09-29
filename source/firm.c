@@ -35,7 +35,7 @@
 #include "screen.h"
 #include "buttons.h"
 #include "pin.h"
-#include "../build/injector.h"
+#include "../build/bundled.h"
 
 extern u16 launchedFirmTidLow[8]; //Defined in start.s
 
@@ -45,13 +45,13 @@ static const firmSectionHeader *section;
 u32 emuOffset;
 bool isN3DS,
      isDevUnit,
+     isA9lh,
      isFirmlaunch;
 CfgData configData;
 FirmwareSource firmSource;
 
 void main(void)
 {
-    bool isA9lh;
     u32 configTemp,
         emuHeader;
     FirmwareType firmType;
@@ -247,13 +247,13 @@ void main(void)
         writeConfig(needConfig, configTemp);
     }
 
-    bool loadFromSd = CONFIG(SDFIRMSANDMODULES);
+    bool loadFromSd = CONFIG(LOADSDFIRMSANDMODULES);
     u32 firmVersion = loadFirm(&firmType, firmSource, loadFromSd);
 
     switch(firmType)
     {
         case NATIVE_FIRM:
-            patchNativeFirm(firmVersion, nandType, emuHeader, isA9lh, devMode);
+            patchNativeFirm(firmVersion, nandType, emuHeader, devMode);
             break;
         case SAFE_FIRM:
         case NATIVE_FIRM1X2X:
@@ -295,9 +295,9 @@ static inline u32 loadFirm(FirmwareType *firmType, FirmwareSource firmSource, bo
         {
             //We can't boot < 3.x EmuNANDs
             if(firmSource != FIRMWARE_SYSNAND) 
-                error("An old unsupported EmuNAND has been detected.\nLuma3DS is unable to boot it");
+                error("An old unsupported EmuNAND has been detected.\nLuma3DS is unable to boot it.");
 
-            if(BOOTCFG_SAFEMODE != 0) error("SAFE_MODE is not supported on 1.x/2.x FIRM");
+            if(BOOTCFG_SAFEMODE != 0) error("SAFE_MODE is not supported on 1.x/2.x FIRM.");
 
             *firmType = NATIVE_FIRM1X2X;
         }
@@ -316,16 +316,14 @@ static inline u32 loadFirm(FirmwareType *firmType, FirmwareSource firmSource, bo
             {
                 u8 cetk[0xA50];
 
-                if(fileRead(cetk, *firmType == NATIVE_FIRM1X2X ? cetkFiles[0] : cetkFiles[(u32)*firmType], sizeof(cetk)))
+                if(fileRead(cetk, *firmType == NATIVE_FIRM1X2X ? cetkFiles[0] : cetkFiles[(u32)*firmType], sizeof(cetk)) == sizeof(cetk))
                     decryptNusFirm(cetk, (u8 *)firm, firmSize);
+                else error("The firmware.bin in /luma is encrypted\nor corrupted.");
             }
 
             //Check that the SD FIRM is right for the console from the ARM9 section address
             if((section[3].offset ? section[3].address : section[2].address) != (isN3DS ? (u8 *)0x8006000 : (u8 *)0x8006800))
-            {
-                if(isFirmlaunch) mcuReboot();
-                error("The firmware.bin in /luma is not valid for your\nconsole, or corrupted"); 
-            }
+                error("The firmware.bin in /luma is not valid for this\nconsole.");
 
             firmVersion = 0xFFFFFFFF;
         }
@@ -333,14 +331,14 @@ static inline u32 loadFirm(FirmwareType *firmType, FirmwareSource firmSource, bo
 
     if(firmVersion != 0xFFFFFFFF)
     {
-        if(mustLoadFromSd) error("An old unsupported FIRM has been detected.\nCopy a firmware.bin in /luma to boot");
+        if(mustLoadFromSd) error("An old unsupported FIRM has been detected.\nCopy a firmware.bin in /luma to boot.");
         decryptExeFs((u8 *)firm);
     }
 
     return firmVersion;
 }
 
-static inline void patchNativeFirm(u32 firmVersion, FirmwareSource nandType, u32 emuHeader, bool isA9lh, u32 devMode)
+static inline void patchNativeFirm(u32 firmVersion, FirmwareSource nandType, u32 emuHeader, u32 devMode)
 {
     u8 *arm9Section = (u8 *)firm + section[2].offset,
        *arm11Section1 = (u8 *)firm + section[1].offset;
@@ -352,8 +350,8 @@ static inline void patchNativeFirm(u32 firmVersion, FirmwareSource nandType, u32
         firm->arm9Entry = (u8 *)0x801B01C;
     }
 
-    //Sets the 7.x NCCH KeyX and the 6.x gamecard save data KeyY on >= 6.0 O3DS FIRMs, if not using A9LH
-    else if(!isA9lh && firmVersion >= 0x29) set6x7xKeys();
+    //Sets the 7.x NCCH KeyX and the 6.x gamecard save data KeyY on >= 6.0 O3DS FIRMs, if not using A9LH or a dev unit
+    else if(!isA9lh && firmVersion >= 0x29 && !isDevUnit) set6x7xKeys();
 
     //Find the Process9 .code location, size and memory address
     u32 process9Size,
@@ -493,12 +491,12 @@ static inline void copySection0AndInjectSystemModules(FirmwareType firmType, boo
         if(fileSize > 0) dstModuleSize = fileSize;
         else
         {
-            const void *module;
+            const u8 *module;
 
             if(firmType == NATIVE_FIRM && memcmp(moduleName, "loader", 6) == 0)
             {
-                module = injector;
-                dstModuleSize = injector_size;
+                module = injector_bin;
+                dstModuleSize = injector_bin_size;
             }
             else
             {

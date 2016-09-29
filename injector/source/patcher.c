@@ -67,13 +67,17 @@ static bool secureInfoExists(void)
     return exists;
 }
 
-static void loadCustomVerString(u16 *out, u32 *verStringSize)
+static void loadCustomVerString(u16 *out, u32 *verStringSize, u32 currentNand)
 {
-    static const char path[] = "/luma/customversion.txt";
+    static const char *paths[] = { "/luma/customversion_sys.txt",
+                                   "/luma/customversion_emu.txt",
+                                   "/luma/customversion_emu2.txt",
+                                   "/luma/customversion_emu3.txt",
+                                   "/luma/customversion_emu4.txt" };
 
     IFile file;
 
-    if(R_SUCCEEDED(fileOpen(&file, ARCHIVE_SDMC, path, FS_OPEN_READ)))
+    if(R_SUCCEEDED(fileOpen(&file, ARCHIVE_SDMC, paths[currentNand], FS_OPEN_READ)))
     {
         u64 fileSize;
 
@@ -403,56 +407,35 @@ void patchCode(u64 progId, u8 *code, u32 size)
                 static const u16 verPattern[] = u"Ver.";
                 static u16 *verString;
                 u32 verStringSize = 0;
+                u32 currentNand = BOOTCFG_NAND;
 
                 u16 customVerString[19];
-                loadCustomVerString(customVerString, &verStringSize);
+                loadCustomVerString(customVerString, &verStringSize, currentNand);
 
                 if(verStringSize != 0) verString = customVerString;
                 else
                 {
                     verStringSize = 8;
-                    u32 currentNand = BOOTCFG_NAND,
-                        currentFirm = BOOTCFG_FIRM;
-                    bool matchingFirm = (currentFirm != 0) == (currentNand != 0);
+                    u32 currentFirm = BOOTCFG_FIRM;
 
-                    static u16 verStringEmu[] = u"Emu ",
-                               verStringEmuSys[] = u"Em S",
-                               verStringSysEmu[] = u"SyE ";
+                    static u16 *verStringsNands[] = { u" Sys",
+                                                      u" Emu",
+                                                      u"Emu2",
+                                                      u"Emu3",
+                                                      u"Emu4" },
 
-                    switch(currentNand)
-                    {
-                        case 1:
-                            verString = matchingFirm ? u" Emu" : u"EmuS";
-                            break;
-                        case 2:
-                        case 3:
-                        case 4:
-                        {
-                            if(matchingFirm)
-                            {
-                                verStringEmu[3] = '0' + currentNand;
-                                verString = verStringEmu;
-                            }
-                            else
-                            {
-                                verStringEmuSys[2] = '0' + currentNand;
-                                verString = verStringEmuSys;
-                            }
-                            break;
-                        }
-                        default:
-                            if(matchingFirm) verString = u" Sys";
-                            else
-                            {
-                                if(currentFirm == 1) verString = u"SysE";
-                                else
-                                {
-                                    verStringSysEmu[3] = '0' + currentFirm;
-                                    verString = verStringSysEmu;
-                                }
-                            }
-                            break;
-                    }
+                               *verStringsEmuSys[] = { u"EmuS",
+                                                       u"Em2S",
+                                                       u"Em3S",
+                                                       u"Em4S" },
+
+                               *verStringsSysEmu[] = { u"SysE",
+                                                       u"SyE2",
+                                                       u"SyE3",
+                                                       u"SyE4" };
+
+                    verString = (currentFirm != 0) == (currentNand != 0) ? verStringsNands[currentNand] :
+                                                                           (!currentNand ? verStringsSysEmu[currentFirm - 1] : verStringsEmuSys[currentNand - 1]);
                 }
 
                 //Patch Ver. string

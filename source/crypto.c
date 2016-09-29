@@ -127,14 +127,14 @@ static void aes_setiv(const void *iv, u32 mode)
 static void aes_advctr(void *ctr, u32 val, u32 mode)
 {
     u32 *ctr32 = (u32 *)ctr;
-    
+
     int i;
     if(mode & AES_INPUT_BE)
     {
         for(i = 0; i < 4; ++i) // Endian swap
             BSWAP32(ctr32[i]);
     }
-    
+
     if(mode & AES_INPUT_NORMAL)
     {
         ADD_u128_u32(ctr32[3], ctr32[2], ctr32[1], ctr32[0], val);
@@ -143,7 +143,7 @@ static void aes_advctr(void *ctr, u32 val, u32 mode)
     {
         ADD_u128_u32(ctr32[0], ctr32[1], ctr32[2], ctr32[3], val);
     }
-    
+
     if(mode & AES_INPUT_BE)
     {
         for(i = 0; i < 4; ++i) // Endian swap
@@ -177,13 +177,13 @@ static void aes_batch(void *dst, const void *src, u32 blockCount)
 {
     *REG_AESBLKCNT = blockCount << 16;
     *REG_AESCNT |=  AES_CNT_START;
-    
+
     const u32 *src32    = (const u32 *)src;
     u32 *dst32          = (u32 *)dst;
-    
+
     u32 wbc = blockCount;
     u32 rbc = blockCount;
-    
+
     while(rbc)
     {
         if(wbc && ((*REG_AESCNT & 0x1F) <= 0xC)) // There's space for at least 4 ints
@@ -194,7 +194,7 @@ static void aes_batch(void *dst, const void *src, u32 blockCount)
             *REG_AESWRFIFO = *src32++;
             wbc--;
         }
-        
+
         if(rbc && ((*REG_AESCNT & (0x1F << 0x5)) >= (0x4 << 0x5))) // At least 4 ints available for read
         {
             *dst32++ = *REG_AESRDFIFO;
@@ -238,7 +238,7 @@ static void aes(void *dst, const void *src, u32 blockCount, void *iv, u32 mode, 
             memcpy(iv, dst + (blocks - 1) * AES_BLOCK_SIZE, AES_BLOCK_SIZE);
             aes_change_ctrmode(iv, AES_INPUT_BE | AES_INPUT_NORMAL, ivMode);
         }
-        
+
         // Advance counter for CTR mode
         else if((mode & AES_ALL_MODES) == AES_CTR_MODE)
             aes_advctr(iv, blocks, ivMode);
@@ -258,7 +258,7 @@ static void sha(void *res, const void *src, u32 size, u32 mode)
 {
     sha_wait_idle();
     *REG_SHA_CNT = mode | SHA_CNT_OUTPUT_ENDIAN | SHA_NORMAL_ROUND;
-    
+
     const u32 *src32 = (const u32 *)src;
     int i;
     while(size >= 0x40)
@@ -274,15 +274,15 @@ static void sha(void *res, const void *src, u32 size, u32 mode)
 
         size -= 0x40;
     }
-    
+
     sha_wait_idle();
     memcpy((void *)REG_SHA_INFIFO, src32, size);
-    
+
     *REG_SHA_CNT = (*REG_SHA_CNT & ~SHA_NORMAL_ROUND) | SHA_FINAL_ROUND;
-    
+
     while(*REG_SHA_CNT & SHA_FINAL_ROUND);
     sha_wait_idle();
-    
+
     u32 hashSize = SHA_256_HASH_SIZE;
     if(mode == SHA_224_MODE)
         hashSize = SHA_224_HASH_SIZE;
@@ -297,6 +297,8 @@ static void sha(void *res, const void *src, u32 size, u32 mode)
 static u8 __attribute__((aligned(4))) nandCtr[AES_BLOCK_SIZE];
 static u8 nandSlot;
 static u32 fatStart;
+static u8 __attribute__((aligned(4))) shaHashBackup[SHA_256_HASH_SIZE];
+static bool didShaHashBackup = false;
 
 void ctrNandInit(void)
 {
@@ -347,19 +349,16 @@ u32 ctrNandRead(u32 sector, u32 sectorCount, u8 *outbuf)
 
 void set6x7xKeys(void)
 {
-    if(!isDevUnit)
-    {
-        const u8 __attribute__((aligned(4))) keyX0x25[AES_BLOCK_SIZE] = {0xCE, 0xE7, 0xD8, 0xAB, 0x30, 0xC0, 0x0D, 0xAE, 0x85, 0x0E, 0xF5, 0xE3, 0x82, 0xAC, 0x5A, 0xF3};
-        const u8 __attribute__((aligned(4))) keyY0x2F[AES_BLOCK_SIZE] = {0xC3, 0x69, 0xBA, 0xA2, 0x1E, 0x18, 0x8A, 0x88, 0xA9, 0xAA, 0x94, 0xE5, 0x50, 0x6A, 0x9F, 0x16};
+    const u8 __attribute__((aligned(4))) keyX0x25[AES_BLOCK_SIZE] = {0xCE, 0xE7, 0xD8, 0xAB, 0x30, 0xC0, 0x0D, 0xAE, 0x85, 0x0E, 0xF5, 0xE3, 0x82, 0xAC, 0x5A, 0xF3};
+    const u8 __attribute__((aligned(4))) keyY0x2F[AES_BLOCK_SIZE] = {0xC3, 0x69, 0xBA, 0xA2, 0x1E, 0x18, 0x8A, 0x88, 0xA9, 0xAA, 0x94, 0xE5, 0x50, 0x6A, 0x9F, 0x16};
 
-        aes_setkey(0x25, keyX0x25, AES_KEYX, AES_INPUT_BE | AES_INPUT_NORMAL);
-        aes_setkey(0x2F, keyY0x2F, AES_KEYY, AES_INPUT_BE | AES_INPUT_NORMAL);
+    aes_setkey(0x25, keyX0x25, AES_KEYX, AES_INPUT_BE | AES_INPUT_NORMAL);
+    aes_setkey(0x2F, keyY0x2F, AES_KEYY, AES_INPUT_BE | AES_INPUT_NORMAL);
 
-        /* [3dbrew] The first 0x10-bytes are checked by the v6.0/v7.0 NATIVE_FIRM keyinit function, 
-                    when non-zero it clears this block and continues to do the key generation.
-                    Otherwise when this block was already all-zero, it immediately returns. */
-        memset32((void *)0x01FFCD00, 0, 0x10);
-    }
+    /* [3dbrew] The first 0x10-bytes are checked by the v6.0/v7.0 NATIVE_FIRM keyinit function, 
+        when non-zero it clears this block and continues to do the key generation.
+        Otherwise when this block was already all-zero, it immediately returns. */
+    memset32((void *)0x01FFCD00, 0, 0x10);
 }
 
 void decryptExeFs(u8 *inbuf)
@@ -373,15 +372,16 @@ void decryptExeFs(u8 *inbuf)
     ncchCtr[8] = 2;
 
     aes_setkey(0x2C, inbuf, AES_KEYY, AES_INPUT_BE | AES_INPUT_NORMAL);
+    aes_advctr(ncchCtr, 0x200 / AES_BLOCK_SIZE, AES_INPUT_BE | AES_INPUT_NORMAL);
     aes_use_keyslot(0x2C);
-    aes(inbuf - 0x200, exeFsOffset, exeFsSize / AES_BLOCK_SIZE, ncchCtr, AES_CTR_MODE, AES_INPUT_BE | AES_INPUT_NORMAL);
+    aes(inbuf, exeFsOffset + 0x200, exeFsSize / AES_BLOCK_SIZE, ncchCtr, AES_CTR_MODE, AES_INPUT_BE | AES_INPUT_NORMAL);
 }
 
 void decryptNusFirm(const u8 *inbuf, u8 *outbuf, u32 ncchSize)
 {
     const u8 keyY0x3D[AES_BLOCK_SIZE] = {0x0C, 0x76, 0x72, 0x30, 0xF0, 0x99, 0x8F, 0x1C, 0x46, 0x82, 0x82, 0x02, 0xFA, 0xAC, 0xBE, 0x4C};
-    u8 __attribute__((aligned(4))) cetkIv[AES_BLOCK_SIZE] = {0};
     u8 __attribute__((aligned(4))) titleKey[AES_BLOCK_SIZE];
+    u8 __attribute__((aligned(4))) cetkIv[AES_BLOCK_SIZE] = {0};
     memcpy(titleKey, inbuf + 0x1BF, sizeof(titleKey));
     memcpy(cetkIv, inbuf + 0x1DC, 8);
 
@@ -415,7 +415,8 @@ void kernel9Loader(u8 *arm9Section)
             break;
     }
 
-    bool needToDecrypt = *(u32 *)(arm9Section + 0x800) != 0x47704770;
+    u32 startOfArm9Bin = *(u32 *)(arm9Section + 0x800);
+    bool needToDecrypt = startOfArm9Bin != 0x47704770 && startOfArm9Bin != 0xB0862000;
 
     if(!isDevUnit && (k9lVersion == 2 || (k9lVersion == 1 && needToDecrypt)))
     {
@@ -429,7 +430,7 @@ void kernel9Loader(u8 *arm9Section)
     {
         u8 arm9BinSlot;
 
-        if(k9lVersion == 0) arm9BinSlot = 0x15;
+        if(!k9lVersion) arm9BinSlot = 0x15;
         else
         {
             arm9BinSlot = 0x16;
@@ -482,8 +483,19 @@ void computePinHash(u8 *outbuf, const u8 *inbuf)
     u8 __attribute__((aligned(4))) cid[AES_BLOCK_SIZE];
     u8 __attribute__((aligned(4))) cipherText[AES_BLOCK_SIZE];
 
+    if(isA9lh && !didShaHashBackup)
+    {
+        memcpy(shaHashBackup, (void *)REG_SHA_HASH, sizeof(shaHashBackup));
+        didShaHashBackup = true;
+    }
+
     sdmmc_get_cid(1, (u32 *)cid);
     aes_use_keyslot(4); //Console-unique keyslot whose keys are set by the ARM9 bootROM
     aes(cipherText, inbuf, 1, cid, AES_CBC_ENCRYPT_MODE, AES_INPUT_BE | AES_INPUT_NORMAL);
     sha(outbuf, cipherText, sizeof(cipherText), SHA_256_MODE);
+}
+
+void restoreShaHashBackup(void)
+{
+    if(didShaHashBackup) memcpy((void *)REG_SHA_HASH, shaHashBackup, sizeof(shaHashBackup));
 }
