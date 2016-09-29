@@ -28,14 +28,8 @@
 #include "fs.h"
 #include "memory.h"
 #include "config.h"
-<<<<<<< HEAD
-#include "fs.h"
-#include "../build/rebootpatch.h"
-#include "../build/svcGetCFWInfopatch.h"
-#include "../build/k11modulespatch.h"
-=======
 #include "../build/bundled.h"
->>>>>>> 5f937248455008055ffa8059e59f717776bda7e8
+
 
 u8 *getProcess9(u8 *pos, u32 size, u32 *process9Size, u32 *process9MemAddr)
 {
