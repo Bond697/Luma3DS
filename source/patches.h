@@ -74,3 +74,4 @@ void patchArm11SvcAccessChecks(u32 *arm11SvcHandler);
 void patchK11ModuleChecks(u8 *pos, u32 size, u8 **freeK11Space);
 void patchUnitInfoValueSet(u8 *pos, u32 size);
 void DoThreadPatches(u8 *pos, u32 size);
+void DoArm11DbgPatches(u8 *pos, u32 size);
